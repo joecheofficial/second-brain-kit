@@ -1,0 +1,14 @@
+{
+  "name": "second-brain-kit",
+  "version": "1.0.0",
+  "organizer": {
+    "repo": "https://github.com/joecheofficial/allsorted-organizer.git",
+    "ref": "v1.9.2",
+    "folder": "allsorted-organizer"
+  },
+  "atelier": {
+    "package": "@mnstry/atelier",
+    "version": "0.2.0-alpha.12"
+  },
+  "node": { "min22": "22.18.0", "min24": "24.13.1" }
+}
