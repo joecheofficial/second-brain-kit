@@ -41,6 +41,12 @@ test('mentions skip common words and prefer specific names', () => {
   assert.deepEqual(mentions(hubs, 'how is the business going'), [])
 })
 
+test('short one-word names match only as typed, and everyday words never do', () => {
+  const hubs = [{ name: 'Anna', notes: 2 }, { name: 'Acme', notes: 2 }, { name: 'Website', notes: 9 }, { name: 'Mark', notes: 2 }]
+  assert.deepEqual(mentions(hubs, 'Ask Anna about Acme.').map(h => h.name).sort(), ['Acme', 'Anna'])
+  assert.deepEqual(mentions(hubs, 'mark this as done on the Website'), [])
+})
+
 test('the briefing lists people with their work and stays short', () => {
   const { root, hubs } = brain()
   const text = briefing(root, hubs)

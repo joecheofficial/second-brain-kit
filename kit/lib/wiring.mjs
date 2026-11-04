@@ -26,9 +26,12 @@ export function mentions(hubs, prompt, limit = 3) {
   const text = flat(prompt)
   const hits = hubs.filter(h => {
     const name = flat(h.name).trim()
-    if (name.length < 4) return false
-    if (!name.includes(' ') && (COMMON.has(name) || name.length < 5)) return false
-    return text.includes(` ${name} `)
+    if (name.length < 3) return false
+    if (name.includes(' ')) return text.includes(` ${name} `)
+    // One-word names can be everyday words, so they must be typed as the hub spells them.
+    if (COMMON.has(name)) return false
+    if (name.length >= 5) return text.includes(` ${name} `)
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${h.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}])`, 'u').test(prompt)
   })
   return hits.sort((a, b) => b.name.length - a.name.length || b.notes - a.notes).slice(0, limit)
 }
@@ -166,9 +169,12 @@ export function checkWiring({ root, host = 'claude' }) {
   if (hubs?.length) {
     const brief = timed([SELF, 'hook', 'session-start', '--root', root])
     add('session briefing prints, under 1s', brief.status === 0 && brief.out.includes('From your second brain') && brief.ms < 1000, `${brief.ms} ms`)
-    const sample = [...hubs].sort((a, b) => b.notes - a.notes)[0]
-    const hit = timed([SELF, 'hook', 'prompt', '--root', root], JSON.stringify({ prompt: `What is next for ${sample.name}?` }))
-    if (host === 'claude') add('prompt hook finds a real name', hit.status === 0 && hit.out.includes(sample.name) && hit.ms < 1000, `${hit.ms} ms`)
+    // Test with a name the hook can match: everyday words like "Website" are skipped on purpose.
+    const sample = [...hubs].sort((a, b) => b.notes - a.notes).find(h => mentions(hubs, `What is next for ${h.name}?`).some(m => m.name === h.name))
+    if (host === 'claude' && sample) {
+      const hit = timed([SELF, 'hook', 'prompt', '--root', root], JSON.stringify({ prompt: `What is next for ${sample.name}?` }))
+      add('prompt hook finds a real name', hit.status === 0 && hit.out.includes(sample.name) && hit.ms < 1000, `${hit.ms} ms`)
+    }
     const miss = timed([SELF, 'hook', 'prompt', '--root', root], JSON.stringify({ prompt: 'zq xv wk' }))
     if (host === 'claude') add('prompt hook silent when nothing matches', miss.status === 0 && miss.out === '')
   }
