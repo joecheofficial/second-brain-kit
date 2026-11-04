@@ -24,6 +24,10 @@ const HELP = `Second brain kit
   progress                         Live progress panel for the first build (stops itself)
   wire [--host codex] [--check]    Put the brain into every session (briefing, hook, skill)
   unwire [--host codex]            Remove that again
+  repos | frontdoor | tools-update | flag --code <code> | log --added N --summarised N
+                                   Fixed jobs the nightly keeper runs
+  guard release <note>             Let a note the safety filter held go through
+  guard canary                     Proves the nightly safety lock is on
   doctor                           Check the setup and say how to fix problems
   update [--check | --apply]       Keep Atelier up to date: check, test a new release
                                    on your brain, then switch (rolls back on failure)
@@ -102,10 +106,10 @@ async function main() {
     case 'add': {
       const root = requireBrain(opts)
       const { addItems, parseItems } = await import('./lib/add.mjs')
-      const r = addItems(root, parseItems(readInput(opts)))
+      const r = addItems(root, parseItems(readInput(opts)), { connector: Boolean(opts.connector) })
       const { updateCatalog } = await import('./lib/catalog.mjs')
       updateCatalog(root, r.paths)
-      print(`Saved: ${r.created} new, ${r.updated} updated, ${r.unchanged} unchanged. Searchable now.${r.skipped.length ? `\nSkipped:\n${r.skipped.map(s => `- item ${s.item}: ${s.why}`).join('\n')}` : ''}`)
+      print(`Saved: ${r.created} new, ${r.updated} updated, ${r.unchanged} unchanged. Searchable now.${r.held ? ` Held by the safety filter: ${r.held} (see _review/HELD.md).` : ''}${r.skipped.length ? `\nSkipped:\n${r.skipped.map(s => `- item ${s.item}: ${s.why}`).join('\n')}` : ''}`)
       if (r.skipped.length) process.exitCode = 1
       return
     }
@@ -156,6 +160,26 @@ async function main() {
     case 'hook': {
       const { runHook } = await import('./lib/wiring.mjs')
       runHook(sub, typeof opts.root === 'string' ? opts.root : null)
+      return
+    }
+    case 'repos': case 'frontdoor': case 'flag': case 'log': case 'tools-update': {
+      const root = requireBrain(opts)
+      const k = await import('./lib/keeper.mjs')
+      const r = cmd === 'repos' ? k.scanRepos(root) : cmd === 'frontdoor' ? k.frontDoor(root)
+        : cmd === 'flag' ? k.flag(root, opts.code, opts.source)
+          : cmd === 'log' ? k.logRun(root, opts) : k.toolsUpdate(root, { host: opts.host, apply: Boolean(opts.apply) })
+      print(typeof r === 'string' ? r : JSON.stringify(r))
+      return
+    }
+    case 'guard': {
+      if (sub === 'canary') {
+        print('The safety lock is NOT on. If this is a scheduled run, run the kit command flag --code lock-off and stop now, reading nothing. If I started this in a chat, carry on: I am here to approve each step.')
+        return
+      }
+      if (sub !== 'release') throw new UserError('Use: guard release <note path>')
+      const root = requireBrain(opts)
+      const { releaseNote } = await import('./lib/queue.mjs')
+      print(JSON.stringify(releaseNote(root, opts._[2])))
       return
     }
     case 'wire': {

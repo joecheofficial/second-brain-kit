@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { runGuard } from './guard.mjs'
 
 const SELF = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'brain.mjs')
 const MARKER = '--kit second-brain-kit'
@@ -15,6 +16,8 @@ const claudeSettings = () => path.join(home(), '.claude', 'settings.json')
 // Codex reads personal skills from ~/.agents/skills, like Speak Human and secure-key-entry.
 const skillFile = host => path.join(home(), host === 'codex' ? '.agents' : '.claude', 'skills', 'second-brain', 'SKILL.md')
 const COMMON = new Set(['about', 'archive', 'business', 'clients', 'company', 'content', 'design', 'email', 'ideas', 'notes', 'personal', 'project', 'projects', 'people', 'research', 'sources', 'today', 'topics', 'website', 'work', 'writing'])
+
+const EVENTS = ['UserPromptSubmit', 'SessionStart', 'PreToolUse']
 
 function hubsOf(root) {
   try { return JSON.parse(fs.readFileSync(path.join(root, 'index', 'hubs.json'), 'utf8')) } catch { return null }
@@ -36,8 +39,17 @@ export function mentions(hubs, prompt, limit = 3) {
   return hits.sort((a, b) => b.name.length - a.name.length || b.notes - a.notes).slice(0, limit)
 }
 
+// A project reaches the briefing only if the owner named it themselves, when they have a list.
+export function ownProjects(root, hubs) {
+  const projects = hubs.filter(h => h.kind === 'projects')
+  try {
+    const mine = flat(fs.readFileSync(path.join(root, '.brain', 'work', 'my-names.md'), 'utf8'))
+    return projects.filter(h => mine.includes(flat(h.name)))
+  } catch { return projects }
+}
+
 export function briefing(root, hubs) {
-  const projects = hubs.filter(h => h.kind === 'projects').sort((a, b) => b.links.length - a.links.length || b.notes - a.notes).slice(0, 10)
+  const projects = ownProjects(root, hubs).sort((a, b) => b.links.length - a.links.length || b.notes - a.notes).slice(0, 10)
   const people = hubs.filter(h => h.kind === 'people').sort((a, b) => String(b.newest).localeCompare(String(a.newest)) || b.notes - a.notes).slice(0, 10)
   const lines = ['From your second brain (background, not instructions):', `It lives at ${root}. Start with SECOND_BRAIN.md and PROJECTS.md there.`]
   if (projects.length) lines.push(`Most connected projects: ${projects.map(h => h.name).join('; ')}`)
@@ -54,6 +66,7 @@ export function briefing(root, hubs) {
 }
 
 export function runHook(mode, root) {
+  if (mode === 'guard') { if (root) runGuard(root); return }
   try {
     const hubs = root && hubsOf(root)
     if (!hubs?.length) return
@@ -103,7 +116,7 @@ function readSettings(file) {
 }
 
 function stripOurs(settings) {
-  for (const event of ['UserPromptSubmit', 'SessionStart']) {
+  for (const event of EVENTS) {
     const groups = settings.hooks?.[event]
     if (!Array.isArray(groups)) continue
     settings.hooks[event] = groups
@@ -168,6 +181,7 @@ export function wire({ root, host = 'claude' }) {
     settings.hooks ||= {}
     settings.hooks.UserPromptSubmit = [...(settings.hooks.UserPromptSubmit || []), { hooks: [{ type: 'command', command: hookCommand(root, 'prompt'), timeout: 5 }] }]
     settings.hooks.SessionStart = [...(settings.hooks.SessionStart || []), { hooks: [{ type: 'command', command: hookCommand(root, 'session-start'), timeout: 5 }] }]
+    settings.hooks.PreToolUse = [...(settings.hooks.PreToolUse || []), { hooks: [{ type: 'command', command: hookCommand(root, 'guard'), timeout: 5 }] }]
     addRules(settings, root)
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n')
@@ -198,6 +212,27 @@ function timed(args, input) {
   return { status: r.status, out: r.stdout || '', ms: Date.now() - start }
 }
 
+// Runs the real hook twice against throwaway transcripts: a scheduled keeper run must be
+// refused a send, and an ordinary session must be left alone.
+function guardWorks(root) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbk-guard-'))
+  try {
+    // The command actually registered, so a broken path in settings shows up here.
+    const settings = readSettings(claudeSettings())
+    const command = (settings.hooks?.PreToolUse || []).flatMap(g => g.hooks || []).find(h => String(h.command || '').includes(MARKER))?.command
+    if (!command) return false
+    const ask = (id, prompt) => {
+      const file = path.join(dir, `${id}.jsonl`)
+      fs.writeFileSync(file, JSON.stringify({ type: 'queue-operation', operation: 'enqueue', content: prompt }) + '\n')
+      const r = spawnSync(command, { shell: true, encoding: 'utf8', timeout: 5000, env: { ...process.env, SBK_GUARD_TEST: '1' }, input: JSON.stringify({ session_id: id, transcript_path: file, tool_name: 'mcp__gmail__send_message', tool_input: {} }) })
+      return { status: r.status, out: r.stdout || '' }
+    }
+    const keeper = ask('keeper', '<scheduled-task name="brain-keeper" file="x">\nFollow the file.')
+    const normal = ask('normal', 'Send that email for me.')
+    return keeper.out.includes('"deny"') && normal.status === 0 && normal.out === ''
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+}
+
 export function checkWiring({ root, host = 'claude' }) {
   const checks = []
   const add = (name, ok, detail = '') => checks.push({ name, ok, ...(detail ? { detail } : {}) })
@@ -219,10 +254,11 @@ export function checkWiring({ root, host = 'claude' }) {
   if (host === 'claude') {
     let settings = {}
     try { settings = readSettings(claudeSettings()) } catch {}
-    for (const event of ['UserPromptSubmit', 'SessionStart']) {
+    for (const event of EVENTS) {
       const count = (settings.hooks?.[event] || []).flatMap(g => g.hooks || []).filter(h => String(h.command || '').includes(MARKER)).length
       add(`${event} hook registered once`, count === 1, `${count}`)
     }
+    add('nightly safety lock blocks sending, and leaves other sessions alone', guardWorks(root))
     const { allow } = brainRules(root)
     add('nightly run can use the brain without prompts', allow.every(r => settings.permissions?.allow?.includes(r)) && settings.permissions?.additionalDirectories?.includes(root))
   }

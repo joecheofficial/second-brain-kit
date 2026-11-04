@@ -11,9 +11,9 @@ repairs.
 
 2. **New items from connectors** (only those the owner set up). Follow the
    "Each night afterwards" column in `kit/prompts/connectors.md`. Save with
-   `node kit/brain.mjs add --file .brain/work/items.json`.
+   `cd BRAIN && node kit/brain.mjs add --connector --file .brain/work/items.json`.
 
-3. **Summaries.** Run `node kit/brain.mjs status`. If notes are waiting, start
+3. **Summaries.** Run `cd BRAIN && node kit/brain.mjs status`. If notes are waiting, start
    up to 5 helpers on the cheapest model, each following `kit/prompts/helper.md`
    with its own name (`n1` … `n5`), for at most NIGHTLY_BATCHES batches of 20 notes
    each. Newest notes go first, so recent material is summarised before old.
@@ -21,7 +21,7 @@ repairs.
 
 4. **Refresh again** so the index and hubs include tonight's summaries.
 
-5. **Once a week (Mondays): updates.** Run `node kit/brain.mjs update --check`.
+5. **Once a week (Mondays): updates.** Run `cd BRAIN && node kit/brain.mjs update --check`.
    If a newer Atelier is available, say so in the report with the command
    `node kit/brain.mjs update` for the owner to run. Never install or apply an
    update yourself.
