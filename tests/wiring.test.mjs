@@ -45,6 +45,7 @@ test('the progress panel reads the checklist the agent keeps', () => {
   assert.equal(p.steps[0].label, 'STEP 1 Mac, git')
   assert.equal(parseProgress('- [x] a\n- [X] b').finished, true)
   assert.equal(parseProgress('').total, 0)
+  assert.equal(parseProgress('- [x] a\n- [~] b\n- [ ] c').steps[1].active, true)
 })
 
 test('mentions skip common words and prefer specific names', () => {

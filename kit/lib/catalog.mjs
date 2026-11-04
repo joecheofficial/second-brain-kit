@@ -121,7 +121,7 @@ const HUBS = 'hubs'
 const lastHubs = new Map()  // writeIndex clears index/, so it rewrites hubs.json from here
 const MAX_LISTED = 500     // links listed in the hub page itself
 const MAX_MEMBERS = 5000   // members declared as related
-const MIN_SHARED = 2       // notes two hubs must share to count as connected
+const MIN_SHARED = 1       // one shared note is a real link; MAX_LINKS keeps the strongest
 const MAX_LINKS = 15       // connections kept per hub, strongest first
 
 // Hub notes: one per project and per person named on two or more notes. Each

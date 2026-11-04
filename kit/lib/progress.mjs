@@ -16,10 +16,10 @@ const COUNTS_EVERY_MS = 15_000
 export function parseProgress(text) {
   const steps = []
   for (const line of String(text).split('\n')) {
-    const m = line.match(/^\s*-\s*\[( |x|X|>)\]\s*(.+)$/)
+    const m = line.match(/^\s*-\s*\[( |x|X|>|~)\]\s*(.+)$/)
     if (!m) continue
     const label = m[2].split(/:\s/)[0].trim().slice(0, 70)
-    steps.push({ label, done: m[1].toLowerCase() === 'x', active: m[1] === '>' })
+    steps.push({ label, done: m[1].toLowerCase() === 'x', active: m[1] === '>' || m[1] === '~' })
   }
   if (!steps.some(s => s.active)) {
     const next = steps.find(s => !s.done)
