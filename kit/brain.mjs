@@ -21,6 +21,7 @@ const HELP = `Second brain kit
   status                           Counts and what is waiting
   map [--people]                   Open the night-sky map of everything; --people opens
                                    the relationship map of your people and projects
+  progress                         Live progress panel for the first build (stops itself)
   wire [--host codex] [--check]    Put the brain into every session (briefing, hook, skill)
   unwire [--host codex]            Remove that again
   doctor                           Check the setup and say how to fix problems
@@ -144,6 +145,12 @@ async function main() {
       print(`Map of ${r.nodes} notes: ${r.file}`)
       print(`Relationship map (${r.hubs} people and projects, ${r.hubLinks} connections): ${r.relationships}`)
       if (!opts['no-open']) openFile(opts.people ? r.relationships : r.file)
+      return
+    }
+    case 'progress': {
+      const root = requireBrain(opts)
+      const { serveProgress } = await import('./lib/progress.mjs')
+      serveProgress(root, { log: print })
       return
     }
     case 'hook': {
