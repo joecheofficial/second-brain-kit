@@ -1,5 +1,6 @@
 // The catalog: one line of facts per note, kept in index/notes.jsonl, plus the
 // human-readable INDEX.md and folder pages an agent reads to find its way.
+import { safeName } from './guard.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { INDEX, NOTES, clip, localTime, readHead, rel, slugify, walkNotes, writeAtomic } from './notes.mjs'
@@ -13,6 +14,8 @@ function firstHeading(text) {
 function list(v) {
   return Array.isArray(v) ? v.map(String).filter(Boolean) : v ? [String(v)] : []
 }
+
+const names = v => [...new Set(list(v).map(safeName).filter(Boolean))]
 
 export function catalogEntry(root, file) {
   let head = readHead(file, 16384)
@@ -33,8 +36,8 @@ export function catalogEntry(root, file) {
     area,
     summary: clip(d.summary || '', 300),
     topics: list(d.topics),
-    people: list(d.people),
-    projects: list(d.projects),
+    people: names(d.people),
+    projects: names(d.projects),
     concepts: tags.filter(t => t.startsWith('concept:')).map(t => t.slice(8)),
     enrichment: d.enrichment ? String(d.enrichment) : (note.hasFrontmatter ? 'unmanaged' : 'no-front-matter'),
     bytes: stat.size,

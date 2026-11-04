@@ -75,7 +75,7 @@ export function find(root, query, { limit = 10, since, source, bodies = true } =
   scored.sort((a, b) => b.score - a.score)
   const results = scored.slice(0, limit).map(({ e, score, coverage }) => {
     let where = null
-    if (bodies) {
+    if (bodies && e.enrichment !== 'held') {
       try { where = snippet(fs.readFileSync(path.join(root, e.path), 'utf8'), words) } catch { where = null }
     }
     return { path: e.path, title: e.title, date: e.date, source: e.source, summary: e.summary, score: Math.round(score), allWords: coverage === 1, match: where }

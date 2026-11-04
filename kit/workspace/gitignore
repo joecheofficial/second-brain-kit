@@ -9,6 +9,7 @@ map/
 .brain/claims/
 .brain/queue.lock
 .brain/work/
+.brain/guard.log
 # Raw exports are huge and contain everything. Notes are made from them.
 inbox/
 .DS_Store

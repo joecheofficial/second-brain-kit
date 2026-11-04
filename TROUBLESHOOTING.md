@@ -27,3 +27,11 @@ safe: it picks up where it stopped and never deletes anything.
 
 Still stuck? Copy the error and the output of `doctor` to your facilitator. Never
 send the contents of your notes.
+
+## A note says "Held by the safety filter"
+
+It looked written to trick an assistant, so no helper read it and it adds no people or connections to your graph. The list is in `_review/HELD.md`. If one is fine, run `node kit/brain.mjs guard release <note path>` and it is summarised the next night. If the thread changes, it is checked again.
+
+## The nightly run says "Second brain safety lock"
+
+That is the lock doing its job: the scheduled keeper can read your apps but never send, change or open the internet. Each refusal is in `.brain/guard.log`. Your own chats are not affected. If keeper.log stays empty and the log shows the same refusal every night, run `node kit/brain.mjs doctor` and ask your facilitator.
