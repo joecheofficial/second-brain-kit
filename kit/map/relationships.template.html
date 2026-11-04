@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My relationships</title>
+<style>
+  :root { --ink:#080d19; --gold:#e9c68d; --cream:#f5efdf; --muted:#c6cbd5; --blue:#8fb4ff; --line:#e4c59040; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: radial-gradient(ellipse at 50% 42%, #18233a 0%, #0d1526 48%, #080d19 100%); color: var(--cream);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
+  canvas { position: fixed; inset: 0; display: block; cursor: grab; }
+  header { position: fixed; top: 18px; left: 22px; pointer-events: none; }
+  h1 { font: 500 30px/1.1 Georgia, 'Times New Roman', serif; letter-spacing: .2px; }
+  header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .legend { position: fixed; left: 22px; bottom: 18px; color: var(--muted); font-size: 13px; display: flex; gap: 16px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  #find { position: fixed; top: 20px; right: 22px; width: 240px; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: #0d1724cc; color: var(--cream); font: inherit; outline: none; }
+  #find:focus { border-color: var(--gold); }
+  #card { position: fixed; right: 22px; top: 70px; width: 300px; max-height: calc(100% - 100px); overflow: auto; padding: 16px 18px; border-radius: 16px;
+    border: 1px solid var(--line); background: #0d1724e6; display: none; }
+  #card h2 { font: 500 22px/1.2 Georgia, serif; margin-bottom: 2px; }
+  #card .kind { color: var(--gold); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+  #card p { color: var(--muted); font-size: 13px; margin: 6px 0 10px; }
+  #card li { list-style: none; padding: 5px 0; border-top: 1px solid #e4c5901a; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+  #card li span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  #card ul { padding: 0; }
+  #empty { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 40px; color: var(--muted); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header><h1>My relationships</h1><p id="sub"></p></header>
+<input id="find" placeholder="Find a person or project" aria-label="Find a person or project">
+<div id="card"></div>
+<div class="legend"><span><i style="background:#e9c68d"></i>People</span><span><i style="background:#8fb4ff"></i>Projects</span><span>Bigger means more notes. Thicker lines mean more shared notes.</span></div>
+<div id="empty">No people or projects yet. They appear as summaries are written: run the helpers, then refresh and open this map again.</div>
+<script>
+const HUBS = __HUBS__
+const MAX = 150
+const hubs = [...HUBS].sort((a, b) => b.notes - a.notes).slice(0, MAX)
+const byName = new Map(hubs.map(h => [h.name, h]))
+const edges = []
+const seen = new Set()
+for (const h of hubs) for (const l of h.links) {
+  const o = byName.get(l.name); if (!o) continue
+  const key = [h.name, o.name].sort().join('|'); if (seen.has(key)) continue
+  seen.add(key); edges.push({ a: h, b: o, w: l.shared })
+}
+const maxNotes = Math.max(1, ...hubs.map(h => h.notes))
+const maxW = Math.max(1, ...edges.map(e => e.w))
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d')
+let W, H, dpr
+function size() { dpr = devicePixelRatio || 1; W = innerWidth; H = innerHeight; canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = W + 'px'; canvas.style.height = H + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0) }
+addEventListener('resize', () => { size(); draw() }); size()
+hubs.forEach((h, i) => {
+  const t = i * 2.399963, r = 40 + 16 * Math.sqrt(i) * 3
+  h.x = W / 2 + Math.cos(t) * r; h.y = H / 2 + Math.sin(t) * r; h.vx = 0; h.vy = 0
+  h.r = 5 + 15 * Math.sqrt(h.notes / maxNotes)
+})
+let heat = 1, view = { x: 0, y: 0, k: 1 }, selected = null, hover = null
+function step() {
+  for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++) {
+    const a = hubs[i], b = hubs[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 1
+    const f = 42000 / d2 * heat, d = Math.sqrt(d2); dx /= d; dy /= d
+    a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f
+  }
+  for (const e of edges) {
+    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.hypot(dx, dy) || 1
+    const f = (d - 260) * 0.012 * (0.4 + e.w / maxW) * heat
+    e.a.vx += dx / d * f; e.a.vy += dy / d * f; e.b.vx -= dx / d * f; e.b.vy -= dy / d * f
+  }
+  for (const h of hubs) {
+    h.vx += (W / 2 - h.x) * 0.004 * heat; h.vy += (H / 2 - h.y) * 0.004 * heat
+    if (h !== drag) { h.x += h.vx; h.y += h.vy } h.vx *= 0.82; h.vy *= 0.82
+  }
+  heat *= 0.992
+}
+const near = h => selected && (h === selected || edges.some(e => (e.a === selected && e.b === h) || (e.b === selected && e.a === h)))
+const label = h => h.name.length > 26 ? h.name.slice(0, 25) + '…' : h.name
+function draw() {
+  ctx.clearRect(0, 0, W, H); ctx.save(); ctx.translate(view.x, view.y); ctx.scale(view.k, view.k)
+  for (const e of edges) {
+    const lit = selected && (e.a === selected || e.b === selected)
+    ctx.strokeStyle = lit ? '#e9c68d' : selected ? '#e4c59012' : '#e4c59038'
+    ctx.lineWidth = (lit ? 1.4 : 0.8) + 3 * e.w / maxW
+    ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke()
+  }
+  for (const h of hubs) {
+    const dim = selected && !near(h), c = h.kind === 'people' ? '#e9c68d' : '#8fb4ff'
+    ctx.globalAlpha = dim ? 0.18 : 1
+    ctx.shadowColor = c; ctx.shadowBlur = h === selected || h === hover ? 26 : 12
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fill(); ctx.shadowBlur = 0
+    ctx.fillStyle = '#f5efdf'; ctx.font = `${h === selected ? 600 : 500} ${h.r > 11 ? 14 : 12}px -apple-system, Segoe UI, sans-serif`
+    ctx.textAlign = 'center'; ctx.fillText(label(h), h.x, h.y + h.r + 15)
+  }
+  ctx.globalAlpha = 1; ctx.restore()
+}
+function tick() { if (heat > 0.02) step(); draw(); requestAnimationFrame(tick) }
+const at = (x, y) => { const px = (x - view.x) / view.k, py = (y - view.y) / view.k; return hubs.find(h => Math.hypot(h.x - px, h.y - py) < h.r + 7) }
+let drag = null, pan = null, moved = false
+canvas.addEventListener('pointerdown', e => { moved = false; drag = at(e.clientX, e.clientY); if (!drag) pan = { x: e.clientX - view.x, y: e.clientY - view.y }; canvas.setPointerCapture(e.pointerId) })
+canvas.addEventListener('pointermove', e => {
+  if (drag) { moved = true; drag.x = (e.clientX - view.x) / view.k; drag.y = (e.clientY - view.y) / view.k; heat = Math.max(heat, 0.15) }
+  else if (pan) { moved = true; view.x = e.clientX - pan.x; view.y = e.clientY - pan.y }
+  else { hover = at(e.clientX, e.clientY); canvas.style.cursor = hover ? 'pointer' : 'grab' }
+})
+canvas.addEventListener('pointerup', e => { if (!moved) pick(at(e.clientX, e.clientY)); drag = null; pan = null })
+canvas.addEventListener('wheel', e => { e.preventDefault(); const k = Math.min(3, Math.max(0.3, view.k * Math.exp(-e.deltaY * 0.001))); view.x = e.clientX - (e.clientX - view.x) * k / view.k; view.y = e.clientY - (e.clientY - view.y) * k / view.k; view.k = k }, { passive: false })
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+function pick(h) {
+  selected = h || null
+  const card = document.getElementById('card')
+  if (!h) { card.style.display = 'none'; return }
+  const links = h.links.filter(l => byName.has(l.name))
+  card.innerHTML = `<div class="kind">${h.kind === 'people' ? 'Person' : 'Project'}</div><h2>${esc(h.name)}</h2><p>${h.notes} notes${h.newest ? `, newest ${esc(h.newest)}` : ''}</p><ul>${links.map(l => `<li data-n="${esc(l.name)}">${esc(l.name)}<span>${l.shared} shared</span></li>`).join('') || '<li>No connections yet</li>'}</ul>`
+  card.style.display = 'block'
+  card.querySelectorAll('li[data-n]').forEach(li => li.onclick = () => pick(byName.get(li.dataset.n)))
+}
+document.getElementById('find').addEventListener('input', e => { const q = e.target.value.toLowerCase().trim(); if (q) pick(hubs.find(h => h.name.toLowerCase().includes(q))) })
+addEventListener('keydown', e => { if (e.key === 'Escape') pick(null) })
+document.getElementById('sub').textContent = `${hubs.filter(h => h.kind === 'people').length} people, ${hubs.filter(h => h.kind === 'projects').length} projects, ${edges.length} connections`
+if (!hubs.length) document.getElementById('empty').style.display = 'flex'
+for (let i = 0; i < 400; i++) step()
+heat = 0.05
+// Fit everything on screen, leaving room for the title and the card.
+if (hubs.length) {
+  const xs = hubs.map(h => h.x), ys = hubs.map(h => h.y)
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys)
+  view.k = Math.min(1.6, Math.max(0.3, Math.min((W - 200) / (x1 - x0 || 1), (H - 220) / (y1 - y0 || 1))))
+  view.x = W / 2 - view.k * (x0 + x1) / 2
+  view.y = H / 2 + 10 - view.k * (y0 + y1) / 2
+}
+document.body.dataset.ready = 'true'
+tick()
+</script>
+</body>
+</html>

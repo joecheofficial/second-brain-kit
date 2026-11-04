@@ -1,0 +1,37 @@
+{
+  "built": "2026-11-03T12:39:02.731Z",
+  "bytes": {
+    "viewer.js": 301136,
+    "depth.js": 1818872
+  },
+  "packages": {
+    "@babylonjs/core": {
+      "version": "9.29.0",
+      "license": "Apache-2.0"
+    },
+    "@mnstry/atelier": {
+      "version": "0.2.0-alpha.16",
+      "license": "Apache-2.0"
+    },
+    "events": {
+      "version": "3.3.0",
+      "license": "MIT"
+    },
+    "graphology": {
+      "version": "0.25.4",
+      "license": "MIT"
+    },
+    "graphology-layout-forceatlas2": {
+      "version": "0.10.1",
+      "license": "MIT"
+    },
+    "graphology-utils": {
+      "version": "2.5.2",
+      "license": "MIT"
+    },
+    "sigma": {
+      "version": "3.0.2",
+      "license": "MIT"
+    }
+  }
+}

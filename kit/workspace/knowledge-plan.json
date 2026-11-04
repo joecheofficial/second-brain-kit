@@ -1,0 +1,62 @@
+{
+  "schema": "atelier-knowledge-plan@v1",
+  "$schema": "./knowledge-plan.schema.json",
+  "purpose": "Help my assistant find what I already know (conversations, email, documents and notes) and say where it came from.",
+  "steward": "Me. I own this folder and everything in it.",
+  "reviewer": "Me. Summaries and tags written by helpers are suggestions until I check them.",
+  "governance": {
+    "admission": "Only my own exports and items I chose to bring in through my connectors. Originals stay where they came from; each note links back to its source.",
+    "review": "Helper summaries are a convenience, not the truth. When something matters, read the note itself.",
+    "correction": "I can edit or delete any note. The nightly refresh rebuilds the index from what is in notes/.",
+    "expression": "Private to me. Nothing here is shared, uploaded or published unless I decide to share a specific note."
+  },
+  "budget": {
+    "maxContextBytes": 16384,
+    "maxSourceBytes": 65536,
+    "maxDocuments": 6
+  },
+  "concepts": [
+    {
+      "id": "project",
+      "definition": "The note is mainly about one of my projects, products, clients or businesses.",
+      "identityRule": "Name the project the way I name it. Two projects with similar names are different until I say they are the same.",
+      "tag": "concept:project"
+    },
+    {
+      "id": "decision",
+      "definition": "The note records something I decided, agreed to or committed to.",
+      "identityRule": "One decision per moment; a later change is a new decision, not an edit of the old one.",
+      "tag": "concept:decision"
+    },
+    {
+      "id": "idea",
+      "definition": "The note holds an idea, plan, draft or option I may come back to.",
+      "identityRule": "An idea is not a decision. Keep it an idea until I act on it.",
+      "tag": "concept:idea"
+    },
+    {
+      "id": "learning",
+      "definition": "The note holds something I researched, learned or had explained to me.",
+      "identityRule": "What a chat assistant told me is a claim to check, not a fact I observed.",
+      "tag": "concept:learning"
+    },
+    {
+      "id": "person",
+      "definition": "The note is mainly about a particular person: a conversation with them, about them, or for them.",
+      "identityRule": "Matching names are not proof of the same person. Use the email address or the context.",
+      "tag": "concept:person"
+    }
+  ],
+  "relations": [],
+  "questions": [
+    {
+      "id": "out-of-scope",
+      "question": "What will the weather be on Mars next Tuesday?",
+      "work": "Check that the assistant says the notes do not answer this instead of guessing.",
+      "concepts": [],
+      "relations": [],
+      "expect": "abstain",
+      "expectedEvidence": []
+    }
+  ]
+}

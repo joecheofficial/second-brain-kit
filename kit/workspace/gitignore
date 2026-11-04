@@ -1,0 +1,14 @@
+# Rebuilt automatically; never needed in history.
+node_modules/
+.atelier-local/
+atelier-output/
+atelier.local.json
+atelier.workspace.local.json
+index/
+map/
+.brain/claims/
+.brain/queue.lock
+.brain/work/
+# Raw exports are huge and contain everything. Notes are made from them.
+inbox/
+.DS_Store

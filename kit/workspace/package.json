@@ -1,0 +1,16 @@
+{
+  "name": "my-second-brain",
+  "private": true,
+  "type": "module",
+  "description": "My private second brain. Never publish this folder.",
+  "scripts": {
+    "doctor": "node kit/brain.mjs doctor",
+    "status": "node kit/brain.mjs status",
+    "refresh": "node kit/brain.mjs refresh",
+    "find": "node kit/brain.mjs find",
+    "map": "node kit/brain.mjs map"
+  },
+  "devDependencies": {
+    "@mnstry/atelier": "0.2.0-alpha.16"
+  }
+}
