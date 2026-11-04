@@ -1,0 +1,88 @@
+# MNSTRY trademarks
+
+The names MNSTRY and MNSTRY Atelier, and the associated logos, are trademarks
+of MNSTRY. The Apache-2.0 license for this package (see LICENSE section 6, "Trademarks")
+grants no trademark rights: you may use, modify, and redistribute the code
+without any right to use these marks except as described in this document.
+
+## What this document binds
+
+These terms are conditions on using the MNSTRY marks and on claiming
+Distribution status. They are not conditions on the code. Apache-2.0 governs
+copying, modification, and redistribution, section 4 states those conditions
+in full, and this document adds none: you may redistribute this package,
+modified or not, without displaying the attribution string, so long as you
+make no use of the MNSTRY marks and claim no Distribution status. Everything
+below is the price of carrying the marks, not the price of using the
+software — including the attribution that `atelier distribution check`
+verifies, which checks distributions that have chosen to carry the marks.
+
+## Required attribution
+
+Distributions built on this package must display the exact attribution string
+
+    powered by MNSTRY Atelier
+
+in two places:
+
+- the distribution's root `README.md` (byte-for-byte match on the phrase;
+  the surrounding text is free), and
+- the distribution's user-facing credits or about surface.
+
+The README requirement is normative and mechanically checked by
+`atelier distribution check`. As an advisory (reported, non-blocking) signal,
+a distribution's extension-pack manifest may also carry
+`ext["mnstry.atelier/attribution"]` set to the same attribution string, using
+the reserved `ext` container — no schema change is involved. Attribution in
+`--version` output is a distribution-side test convention, not a runtime
+check.
+
+## Quiet software
+
+The kit, and anything carrying the "powered by MNSTRY Atelier" attribution, must not
+emit commercially motivated interruptions: no upsells, no calls-to-action, no
+prompts to sign up, upgrade, rate, subscribe, or purchase. Attribution stays a
+passive line — it identifies, it never solicits. MNSTRY binds itself to the
+same standard, including this channel policy: outbound communication is
+limited to user-initiated artifacts, inbound communication is pull-only, and
+there is no telemetry, ever. Violating this clause forfeits the right to carry
+the MNSTRY marks.
+
+## Applications
+
+An application powered by this package that ships no CLI carries the
+attribution in its user-facing credits or about surface. The wording
+requirements mirror the distribution rule above: the exact attribution string,
+byte for byte, with the surrounding text free.
+
+## Naming your distribution
+
+MNSTRY marks may not appear in product names, package names, or domain names.
+Nominative use is permitted in the form "<YourName> for MNSTRY Atelier", which
+names the compatibility target without implying that MNSTRY publishes or
+endorses your distribution.
+
+## Compatibility claims
+
+The sanctioned phrasing for a compatibility claim is:
+
+    implements atelier contracts v1
+
+Conformance is public and offline: anyone can run the published validators in
+this package and reach the same answer (see `docs/reference/attestation.md`). No
+permission is needed to make a truthful compatibility claim in this form, and
+no attestation can substitute for it.
+
+## Certification and admission
+
+The phrases "MNSTRY certified" and "MNSTRY admitted" (and equivalents) are
+reserved to holders of a signed MNSTRY attestation that verifies per the
+procedure in `docs/reference/attestation.md`. Self-issued or unsigned attestations
+confer no such claim: an attestation with `"signature": null` is
+non-authoritative by definition, and a signature is only meaningful under a
+key the relying party recognizes as MNSTRY's.
+
+## Questions
+
+For trademark questions or permission requests beyond what this document
+covers, contact MNSTRY through the channels listed in the package README.

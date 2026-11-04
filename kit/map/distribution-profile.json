@@ -1,0 +1,5 @@
+{
+  "name": "My second brain",
+  "vocabulary": { "record": "note", "records": "notes", "zone": "area" },
+  "zoneLabels": { "hubs/projects": "Projects", "hubs/people": "People" }
+}
