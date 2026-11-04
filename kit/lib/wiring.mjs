@@ -115,6 +115,41 @@ function stripOurs(settings) {
   return settings
 }
 
+// Scheduled tasks run in Manual mode from another folder, so without these the nightly
+// run stops at its first prompt with nobody there. Scoped to this brain and the kit's own
+// commands only; connector reads are approved once by the owner, inside the task.
+function brainRules(root) {
+  const abs = root.split(path.sep).join('/')
+  const slashed = abs.startsWith('/') ? `/${abs}` : `//${abs}`
+  return {
+    dirs: [root],
+    allow: [`Read(${slashed}/**)`, `Edit(${slashed}/**)`, `Write(${slashed}/**)`, `Bash("${process.execPath}" "${abs}/kit/brain.mjs" *)`],
+  }
+}
+
+function addRules(settings, root) {
+  const { dirs, allow } = brainRules(root)
+  const p = (settings.permissions ||= {})
+  p.additionalDirectories = [...new Set([...(p.additionalDirectories || []), ...dirs])]
+  p.allow = [...new Set([...(p.allow || []), ...allow])]
+}
+
+function removeRules(settings, root) {
+  const p = settings.permissions
+  if (!p) return
+  const { dirs, allow } = brainRules(root)
+  if (p.additionalDirectories) p.additionalDirectories = p.additionalDirectories.filter(d => !dirs.includes(d))
+  if (p.allow) p.allow = p.allow.filter(r => !allow.includes(r))
+  for (const k of ['additionalDirectories', 'allow']) if (p[k] && !p[k].length) delete p[k]
+  if (!Object.keys(p).length) delete settings.permissions
+}
+
+function wiredRoot(settings) {
+  const hooks = Object.values(settings.hooks || {}).flat().flatMap(g => g.hooks || [])
+  const ours = hooks.find(h => String(h.command || '').includes(MARKER))
+  return ours ? (String(ours.command).match(/--root "([^"]+)"/) || [])[1] : null
+}
+
 const hookCommand = (root, mode) => `"${process.execPath}" "${path.join(root, 'kit', 'brain.mjs')}" hook ${mode} --root "${root}" ${MARKER}`
 
 export function wire({ root, host = 'claude' }) {
@@ -133,6 +168,7 @@ export function wire({ root, host = 'claude' }) {
     settings.hooks ||= {}
     settings.hooks.UserPromptSubmit = [...(settings.hooks.UserPromptSubmit || []), { hooks: [{ type: 'command', command: hookCommand(root, 'prompt'), timeout: 5 }] }]
     settings.hooks.SessionStart = [...(settings.hooks.SessionStart || []), { hooks: [{ type: 'command', command: hookCommand(root, 'session-start'), timeout: 5 }] }]
+    addRules(settings, root)
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n')
     result.written.push(file)
@@ -148,6 +184,8 @@ export function unwire({ host = 'claude' }) {
   if (host === 'claude' && fs.existsSync(file)) {
     const settings = readSettings(file)
     backup(file)
+    const root = wiredRoot(settings)
+    if (root) removeRules(settings, root)
     fs.writeFileSync(file, JSON.stringify(stripOurs(settings), null, 2) + '\n')
     result.removed.push(`hooks in ${file}`)
   }
@@ -185,6 +223,8 @@ export function checkWiring({ root, host = 'claude' }) {
       const count = (settings.hooks?.[event] || []).flatMap(g => g.hooks || []).filter(h => String(h.command || '').includes(MARKER)).length
       add(`${event} hook registered once`, count === 1, `${count}`)
     }
+    const { allow } = brainRules(root)
+    add('nightly run can use the brain without prompts', allow.every(r => settings.permissions?.allow?.includes(r)) && settings.permissions?.additionalDirectories?.includes(root))
   }
   return { ok: checks.every(c => c.ok), checks }
 }
