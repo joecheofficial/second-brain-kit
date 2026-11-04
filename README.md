@@ -15,6 +15,7 @@ node ~/second-brain-kit/kit/brain.mjs setup --target ~/brain_dump_map
 
 - **A relationship graph.** People and projects that share notes are linked to each other, in the Atelier graph and on their hub pages. `node kit/brain.mjs map --people` opens the map of them. The everyday map and its 3D view are unchanged.
 - **The wiring.** `node kit/brain.mjs wire` adds a `second-brain` skill and, for Claude Code, two hooks: a briefing when a session starts, and the right connections whenever you name a project or person. It backs up `~/.claude/settings.json` and keeps everything else; `unwire` removes it. Use `--host codex` for Codex (skill only) and `--check` to test it.
+- **A live progress panel.** `node kit/brain.mjs progress` serves a small local page with a progress bar, the current step and running counts during the first build. It reads `_progress.md` and uses no model.
 - **One spelling per name.** Helpers read `.brain/work/my-names.md`, so parallel helpers connect the same people and projects.
 - **Expansion colours** on the map.
 

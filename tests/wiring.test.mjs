@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { writeHubs, writeIndex } from '../kit/lib/catalog.mjs'
 import { mentions, briefing } from '../kit/lib/wiring.mjs'
+import { parseProgress } from '../kit/lib/progress.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'kit', 'brain.mjs')
 const note = (id, people, projects, date = '2026-10-20') => ({ path: `notes/chats/chatgpt/2026/${id}.md`, id: `chat:${id}`, title: id, date, source: 'chatgpt', area: 'chats/chatgpt', summary: '', topics: [], people, projects, concepts: [], enrichment: 'done', bytes: 1, managed: true })
@@ -33,6 +34,17 @@ test('hubs that share notes are connected, in the graph and on the page', () => 
   assert.match(text, /## Connected to/)
   assert.match(text, /\(2 shared notes\)/)
   assert.equal(hubs.find(h => h.name === 'Business').links.length, 0)
+})
+
+test('the progress panel reads the checklist the agent keeps', () => {
+  const p = parseProgress('KIT: x\n\n- [x] STEP 1 Mac, git: fine\n- [x] STEP 2 Kit\n- [ ] STEP 3 Chat exports\n- [ ] STEP 4 Names\n- NOTE: not a step')
+  assert.equal(p.total, 4)
+  assert.equal(p.done, 2)
+  assert.equal(p.percent, 50)
+  assert.equal(p.steps[2].active, true)
+  assert.equal(p.steps[0].label, 'STEP 1 Mac, git')
+  assert.equal(parseProgress('- [x] a\n- [X] b').finished, true)
+  assert.equal(parseProgress('').total, 0)
 })
 
 test('mentions skip common words and prefer specific names', () => {
