@@ -11,6 +11,6 @@
     "map": "node kit/brain.mjs map"
   },
   "devDependencies": {
-    "@mnstry/atelier": "0.2.0-alpha.16"
+    "@mnstry/atelier": "0.2.0-alpha.23"
   }
 }

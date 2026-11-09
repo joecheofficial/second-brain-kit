@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-export const ATELIER_VERSION = '0.2.0-alpha.16'
+export const ATELIER_VERSION = '0.2.0-alpha.23'
 export const NODE_RANGE = '>=22.18.0 <23 || >=24.13.1 <25'
 
 export function nodeSupported(version = process.versions.node) {

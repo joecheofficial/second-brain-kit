@@ -8,6 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { ATELIER_VERSION } from '../kit/lib/atelier.mjs'
 import { chatgptExport, claudeExport, claudeProjects, writeExports } from './fixtures.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -268,85 +269,144 @@ test('versions compare the way npm orders them', async () => {
   assert.equal(compareVersions('0.2.0-alpha.15', '0.2.0-alpha.15'), 0)
 })
 
-// Packages for the fake npm: the real alpha.16, a renamed copy as alpha.17 with
-// upgrade notes, and an alpha.18 whose knowledge check fails.
+// Real pinned package plus explicitly synthetic versions for offline update tests.
+const LEGACY_VERSION = '0.2.0-alpha.16'
+const nextVersion = offset => ATELIER_VERSION.replace(/(\d+)$/, n => Number(n) + offset)
+const FUTURE_VERSION = nextVersion(1)
+const BROKEN_VERSION = nextVersion(2)
+const versionPattern = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 function fakeRegistry(base) {
   const real = path.join(modules, '@mnstry', 'atelier')
   const pkgs = path.join(base, 'pkgs')
-  fs.cpSync(real, path.join(pkgs, '0.2.0-alpha.16'), { recursive: true })
-  for (const v of ['0.2.0-alpha.17', '0.2.0-alpha.18']) {
+  assert.equal(JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')).version, ATELIER_VERSION, 'integration package matches the kit pin')
+  for (const v of new Set([LEGACY_VERSION, ATELIER_VERSION, FUTURE_VERSION, BROKEN_VERSION])) {
     const dir = path.join(pkgs, v)
     fs.cpSync(real, dir, { recursive: true })
     const pj = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
     pj.version = v
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(pj, null, 2))
     const guide = path.join(dir, 'docs', 'guides', 'upgrade.md')
-    fs.writeFileSync(guide, fs.readFileSync(guide, 'utf8').replace('## Upgrading to 0.2.0-alpha.16', `## Upgrading to ${v}\n\nInvented test note for ${v}.\n\n## Upgrading to 0.2.0-alpha.16`))
+    fs.writeFileSync(guide, `## Upgrading to ${v}\n\nInvented test note for ${v}.\n\n` + fs.readFileSync(guide, 'utf8'))
   }
-  const bin = path.join(pkgs, '0.2.0-alpha.18', 'bin', 'atelier.mjs')
+  const bin = path.join(pkgs, BROKEN_VERSION, 'bin', 'atelier.mjs')
   fs.renameSync(bin, path.join(path.dirname(bin), 'atelier-real.mjs'))
   fs.writeFileSync(bin, `if (process.argv[2] === 'knowledge' && process.argv[3] === 'check') { console.error('invented failure'); process.exit(1) }\nawait import('./atelier-real.mjs')\n`)
   return pkgs
+}
+
+function legacyInstall(target, env) {
+  const pkgFile = path.join(target, 'package.json')
+  const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
+  pkg.devDependencies['@mnstry/atelier'] = LEGACY_VERSION
+  fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
+  const install = spawnSync(process.execPath, [env.BRAIN_NPM, 'install'], { cwd: target, env, encoding: 'utf8' })
+  assert.equal(install.status, 0, install.stderr)
+  const lock = spawnSync(process.execPath, [path.join(target, 'node_modules', '@mnstry', 'atelier', 'bin', 'atelier.mjs'), 'lock', 'write'], { cwd: target, encoding: 'utf8' })
+  assert.equal(lock.status, 0, lock.stderr)
+  const stateFile = path.join(target, '.brain', 'brain.json')
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  fs.writeFileSync(stateFile, JSON.stringify({ ...state, kit: '2.2.0', atelier: LEGACY_VERSION }))
 }
 
 test('update: check, test on the side, apply, and roll back on failure', { skip: !modules && 'set ATELIER_MODULES' }, async () => {
   const home = tmp('update')
   const target = path.join(home, 'second-brain')
   const pkgs = fakeRegistry(home)
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', BRAIN_NPM: path.join(here, 'fake-npm.mjs'), FAKE_PKGS: pkgs, FAKE_DEPS: modules, FAKE_TAGS: JSON.stringify({ latest: '0.2.0-alpha.12', alpha: '0.2.0-alpha.17' }) }
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', BRAIN_NPM: path.join(here, 'fake-npm.mjs'), FAKE_PKGS: pkgs, FAKE_DEPS: modules, FAKE_TAGS: JSON.stringify({ latest: '0.2.0-alpha.12', alpha: FUTURE_VERSION }) }
   const run = (args, extra = {}) => spawnSync(process.execPath, [path.join(KIT, 'brain.mjs'), ...args], { cwd: home, encoding: 'utf8', env: { ...env, ...extra } })
-  // Setup installs alpha.16 through the fake npm.
   let r = run(['setup', '--target', target])
   assert.equal(r.status, 0, r.stderr + r.stdout)
+  legacyInstall(target, env)
   writeExports(path.join(target, 'inbox'), { chatgpt: 5, claude: 2 })
   const inner = (args, extra) => spawnSync(process.execPath, [path.join(target, 'kit', 'brain.mjs'), ...args], { cwd: target, encoding: 'utf8', env: { ...env, ...extra } })
   assert.equal(inner(['refresh']).status, 0)
   const version = () => JSON.parse(fs.readFileSync(path.join(target, 'node_modules', '@mnstry', 'atelier', 'package.json'), 'utf8')).version
+  const preserved = new Map((await allNotes(target)).concat(['knowledge-plan.json', 'atelier.project.json']).map(f => [f, fs.readFileSync(path.join(target, f), 'utf8')]))
+  const assertPreserved = () => { for (const [f, text] of preserved) assert.equal(fs.readFileSync(path.join(target, f), 'utf8'), text, f) }
 
   r = inner(['update', '--check'])
-  assert.match(r.stdout, /0\.2\.0-alpha\.17 is available \(you have 0\.2\.0-alpha\.16\)/)
+  assert.ok(r.stdout.includes(`${FUTURE_VERSION} is available (you have ${LEGACY_VERSION})`), r.stdout)
   assert.match(r.stdout, /not been tested with it/)
   assert.doesNotMatch(r.stdout, /alpha\.12/, 'an older tagged release is never offered')
-  assert.match(inner(['doctor']).stdout, /ℹ Atelier 0\.2\.0-alpha\.17 is available/)
+  assert.match(inner(['doctor']).stdout, new RegExp(`ℹ Atelier ${versionPattern(FUTURE_VERSION)} is available`))
 
   // A release that fails on this brain is refused and nothing changes.
-  r = inner(['update', '--to', '0.2.0-alpha.18'])
+  r = inner(['update', '--to', BROKEN_VERSION])
   assert.equal(r.status, 1, r.stdout)
   assert.match(r.stdout, /✗ knowledge check/)
   assert.match(r.stdout, /nothing was changed/)
-  assert.equal(version(), '0.2.0-alpha.16')
+  assert.equal(version(), LEGACY_VERSION)
   assert.notEqual(inner(['update', '--apply']).status, 0, 'a failed candidate cannot be applied')
+  assertPreserved()
 
-  // Prepare the good one: tested on the side, the working version untouched.
+  // The real pin is tested on the side, leaving the working version untouched.
+  env.FAKE_TAGS = JSON.stringify({ latest: '0.2.0-alpha.12', alpha: ATELIER_VERSION })
   r = inner(['update'])
   assert.equal(r.status, 0, r.stderr + r.stdout)
   assert.match(r.stdout, /✓ knowledge check/)
-  assert.match(r.stdout, /Invented test note for 0\.2\.0-alpha\.17/)
-  assert.equal(version(), '0.2.0-alpha.16')
+  assert.match(r.stdout, new RegExp(`Invented test note for ${versionPattern(ATELIER_VERSION)}`))
+  const candidate = JSON.parse(fs.readFileSync(path.join(target, '.brain', 'work', 'update-candidate.json'), 'utf8'))
+  assert.equal(candidate.testedWithThisKit, true)
+  assert.equal(version(), LEGACY_VERSION)
 
-  // Apply with a failing install: the old version comes back.
-  r = inner(['update', '--apply'], { FAKE_FAIL_INSTALL: '0.2.0-alpha.17' })
+  // Apply with a failing install: the old version and settings come back.
+  r = inner(['update', '--apply'], { FAKE_FAIL_INSTALL: ATELIER_VERSION })
   assert.notEqual(r.status, 0)
-  assert.match(r.stderr, /0\.2\.0-alpha\.16 is back in place/)
-  assert.equal(version(), '0.2.0-alpha.16')
-  assert.match(fs.readFileSync(path.join(target, 'package.json'), 'utf8'), /0\.2\.0-alpha\.16/)
+  assert.match(r.stderr, new RegExp(`${versionPattern(LEGACY_VERSION)} is back in place`))
+  assert.equal(version(), LEGACY_VERSION)
+  assert.equal(JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8')).devDependencies['@mnstry/atelier'], LEGACY_VERSION)
+  assertPreserved()
 
-  // Apply for real.
   r = inner(['update'])
+  assert.equal(r.status, 0, r.stderr + r.stdout)
   r = inner(['update', '--apply'])
   assert.equal(r.status, 0, r.stderr + r.stdout)
-  assert.match(r.stdout, /Updated Atelier 0\.2\.0-alpha\.16 → 0\.2\.0-alpha\.17/)
-  assert.equal(version(), '0.2.0-alpha.17')
+  assert.match(r.stdout, new RegExp(`Updated Atelier ${versionPattern(LEGACY_VERSION)} → ${versionPattern(ATELIER_VERSION)}`))
+  assert.equal(version(), ATELIER_VERSION)
   const lock = JSON.parse(fs.readFileSync(path.join(target, 'atelier.lock.json'), 'utf8'))
-  assert.equal(lock.package.version, '0.2.0-alpha.17')
-  assert.match(spawnSync('git', ['log', '--oneline', '-1'], { cwd: target, encoding: 'utf8' }).stdout, /Update Atelier 0\.2\.0-alpha\.16 to 0\.2\.0-alpha\.17/)
+  assert.equal(lock.package.version, ATELIER_VERSION)
+  assert.match(spawnSync('git', ['log', '--oneline', '-1'], { cwd: target, encoding: 'utf8' }).stdout, new RegExp(`Update Atelier ${versionPattern(LEGACY_VERSION)} to ${versionPattern(ATELIER_VERSION)}`))
   assert.equal(inner(['doctor']).status, 0)
   assert.equal((await allNotes(target)).length, 9, 'notes untouched')
+  assertPreserved()
 
-  // Re-running setup from the original kit never downgrades.
+  // Re-running setup never downgrades a version newer than the kit pin.
+  r = inner(['update', '--to', FUTURE_VERSION])
+  assert.equal(r.status, 0, r.stderr + r.stdout)
+  r = inner(['update', '--apply'])
+  assert.equal(r.status, 0, r.stderr + r.stdout)
   r = run(['setup', '--target', target])
   assert.equal(r.status, 0, r.stderr)
-  assert.equal(version(), '0.2.0-alpha.17')
+  assert.equal(version(), FUTURE_VERSION)
+})
+
+test('setup upgrades a 2.2.0 alpha.16 brain safely and preserves notes and settings', { skip: !modules && 'set ATELIER_MODULES' }, async () => {
+  const home = tmp('kit-upgrade')
+  const target = path.join(home, 'second-brain')
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', BRAIN_NPM: path.join(here, 'fake-npm.mjs'), FAKE_PKGS: fakeRegistry(home), FAKE_DEPS: modules }
+  const run = extra => spawnSync(process.execPath, [path.join(KIT, 'brain.mjs'), 'setup', '--target', target], { cwd: home, encoding: 'utf8', env: { ...env, ...extra } })
+  assert.equal(run().status, 0)
+  legacyInstall(target, env)
+  const files = new Map([
+    ['notes/my-notes/personal.md', '# Personal note\nKeep this.\n'],
+    ['.brain/approved-tools.txt', 'my chosen tools\n'],
+    ['.claude/settings.json', '{"customSetting":true}\n'],
+    ['knowledge-plan.json', fs.readFileSync(path.join(target, 'knowledge-plan.json'), 'utf8')],
+  ])
+  for (const [f, text] of files) { fs.mkdirSync(path.dirname(path.join(target, f)), { recursive: true }); fs.writeFileSync(path.join(target, f), text) }
+  const refreshed = spawnSync(process.execPath, [path.join(target, 'kit', 'brain.mjs'), 'refresh'], { cwd: target, env, encoding: 'utf8' })
+  assert.equal(refreshed.status, 0, refreshed.stderr + refreshed.stdout)
+  const pkgBefore = fs.readFileSync(path.join(target, 'package.json'), 'utf8')
+  const lockBefore = fs.readFileSync(path.join(target, 'atelier.lock.json'), 'utf8')
+  let r = run({ FAKE_FAIL_INSTALL: ATELIER_VERSION })
+  assert.notEqual(r.status, 0)
+  assert.equal(fs.readFileSync(path.join(target, 'package.json'), 'utf8'), pkgBefore, 'failed kit upgrade keeps the old package pin')
+  assert.equal(fs.readFileSync(path.join(target, 'atelier.lock.json'), 'utf8'), lockBefore)
+  r = run()
+  assert.equal(r.status, 0, r.stderr + r.stdout)
+  assert.equal(JSON.parse(fs.readFileSync(path.join(target, 'atelier.lock.json'), 'utf8')).package.version, ATELIER_VERSION)
+  for (const [f, text] of files) assert.equal(fs.readFileSync(path.join(target, f), 'utf8'), text, f)
 })
 
 test('MNSTRY information is opt-in and local', { skip: !modules && 'set ATELIER_MODULES' }, async () => {

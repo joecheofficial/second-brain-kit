@@ -5,6 +5,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const [cmd, ...args] = process.argv.slice(2)
+// The test glob also discovers this CLI fixture without arguments.
+if (!cmd && process.env.NODE_TEST_CONTEXT) process.exit(0)
 if (cmd === 'view') {
   process.stdout.write(process.env.FAKE_TAGS ?? '{}')
   process.exit(0)
