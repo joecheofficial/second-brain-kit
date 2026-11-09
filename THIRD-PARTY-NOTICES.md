@@ -15,4 +15,5 @@ the file):
 - events 3.3.0, MIT
 
 The kit's own code and text are released under Apache-2.0 (`LICENSE`).
-`setup` installs `@mnstry/atelier` from npm at the exact version pinned in the brain's `package.json`.
+`setup` installs `@mnstry/atelier` 0.2.0-alpha.23 from npm at the exact version pinned in the brain's `package.json`.
+The vendored viewer remains from 0.2.0-alpha.16, as recorded in its provenance.

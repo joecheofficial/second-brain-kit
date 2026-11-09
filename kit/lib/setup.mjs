@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { ATELIER_VERSION, NODE_RANGE, atelier, installedVersion, nodeSupported } from './atelier.mjs'
 import { INBOX, NOTES, STATE, UserError, readJson, writeAtomic, writeJson } from './notes.mjs'
-import { compareVersions, npm, parseVersion } from './update.mjs'
+import { applyUpdate, compareVersions, npm, parseVersion, prepareUpdate } from './update.mjs'
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const KIT_VERSION = readJson(path.join(KIT, 'VERSION.json'), { version: 'dev' }).version
@@ -70,6 +70,14 @@ export function setup({ target = defaultTarget(), log = console.log, install = t
 
   const fresh = !fs.existsSync(path.join(target, STATE, 'brain.json'))
   fs.mkdirSync(target, { recursive: true })
+  // Existing brains take the same tested, reversible path as `update --apply`.
+  // Do this before replacing the kit or changing the working package pin.
+  const current = installedVersion(target)
+  if (install && current && compareVersions(current, ATELIER_VERSION) < 0 && fs.existsSync(path.join(target, 'atelier.lock.json'))) {
+    const candidate = prepareUpdate(target, { to: ATELIER_VERSION })
+    if (candidate.status !== 'ready') throw new UserError('The new Atelier did not pass on this brain. Nothing was changed; keep using the current kit.')
+    applyUpdate(target, { log })
+  }
   const ws = path.join(KIT, 'workspace')
 
   // The kit travels with the brain so the nightly refresh never depends on Downloads.

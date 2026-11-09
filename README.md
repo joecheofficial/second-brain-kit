@@ -25,6 +25,6 @@ node ~/second-brain-kit/kit/brain.mjs setup --target ~/brain_dump_map
 ATELIER_MODULES=<folder>/node_modules node --test tests/kit.test.mjs tests/wiring.test.mjs
 ```
 
-`ATELIER_MODULES` is a `node_modules` folder with `@mnstry/atelier@0.2.0-alpha.16` installed. Node 24, or 22.18 and later.
+`ATELIER_MODULES` is a `node_modules` folder with `@mnstry/atelier@0.2.0-alpha.23` installed. Node 24, or 22.18 and later.
 
 Apache-2.0, see [LICENSE](LICENSE). MNSTRY and Atelier are trademarks of MNSTRY, see [TRADEMARKS.md](TRADEMARKS.md).
